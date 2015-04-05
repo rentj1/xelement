@@ -1,0 +1,261 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+	<meta charset="utf-8" />
+	
+	<script>
+	(function(XElement){
+
+		function Event(){
+			this.events = {};
+		}
+		
+		Event.prototype = {
+			
+			events: {
+			
+			},
+			
+			on: function(type, fn){
+				if(!(fn && type)){
+					return;
+				}
+				if(!this.events[type]){
+					this.events[type] = [];
+				}
+				this.events[type].push(fn);	
+			},
+			
+			off: function(type, fn){
+				var observers = this.events[type] || [];
+
+				if(!fn){
+					this.events[type] = [];
+					return;
+				}
+				
+				for( var i=0; i<observers.length; i++){
+					if(observers[i] == fn){
+						observers.splice(i,1);
+						break;
+					}
+				}		
+				
+			},
+			
+			trigger: function(type, args, context){
+			
+				var observers = this.events[type] || [],
+					observer;
+					
+				for(var i=0;i<observers.length; i++ ){
+				
+					observer = observers[i];
+					observer.call((context || this), args);
+					
+				}
+			}
+		};
+
+		function EventArgs(){
+			this.target = window.event.srcElement;
+			for(var i in this){
+				window.event[i] = this[i];
+			}
+			return window.event;
+		}
+		
+		EventArgs.prototype = {
+
+			stopPropagation:function () {
+				window.event.cancelBubble = true;
+			},
+			
+			preventDefault: function () {
+				window.event.returnValue = false;
+			}
+		}; 
+
+		function DOMEvent(element){
+			this.event = new Event;
+			this.element = element;
+			this.handlers = {};
+		}
+		
+		DOMEvent.prototype = {
+
+			on:function(type,fn){
+				
+				var _this = this,
+					element = _this.element;
+					
+				_this.event.on(type, fn);
+				if(_this.handlers[type]){
+				
+					return;
+					
+				}
+				
+				this.handlers[type] = function(event){
+				
+					var args = event;
+					if(!args){	
+						args = new EventArgs();
+					}
+					
+					_this.event.trigger(type, args, element);
+				};
+				
+				if(element.addEventListener){
+					element.addEventListener(type, _this.handlers[type], false);
+				}else{
+					element.attachEvent("on" + type, _this.handlers[type]);
+				}
+				
+			},
+			
+			off: function(type, fn){
+			
+				this.event.off(type, fn);
+				
+				if(this.event.events[type].length > 0 || this.handlers[type] == undefined){
+					return;
+				}
+				
+				var element = this.element;
+				if(element.removeEventListener){
+					element.removeEventListener(this.handlers[type], false);
+				}else{
+					element.detachEvent('on' + type, this.handlers[type]);
+				}
+				
+				this.handlers[type] = undefined
+				
+			},
+			
+			trigger:function(type){
+				if(!this.element){
+					return;
+				}
+				
+				DOMEvent.trigger(this.element, type);
+			}
+			
+		};
+		
+		function Observable(elem){
+			return DOMEvent[elem["__EventIndex__"]];
+		}
+		
+		DOMEvent.on = function(elem, type, fn){
+			var index = "__EventIndex__" + (+new Date()) + Math.floor( Math.random() * 10000);
+			var instance = new DOMEvent(elem);
+			instance.on(type, fn);
+			
+			DOMEvent[index] = instance;
+			elem["__EventIndex__"] = index;
+		};
+		
+		DOMEvent.off = function(elem, type, fn){
+			var observable = Observable(elem);
+			observable.off(type, fn);
+		};
+		
+		DOMEvent.trigger = function(elem, type){
+			
+			if (typeof elem == "undefined" || elem == null) {
+				return;
+			}
+			if (document.createEvent) {
+				var evt = document.createEvent('HTMLEvents');
+				// initEvent接受3个参数：
+				// 		事件类型，是否冒泡，是否阻止浏览器的默认行为
+				evt.initEvent(type, true, true);
+				return !elem.dispatchEvent(evt);
+			}
+
+			else {
+				// 低版本IE浏览器支持fireEvent方法
+				var evt = document.createEventObject();
+				return elem.fireEvent('on' + type, evt);
+
+			}
+		};
+		
+		
+		//对外接口
+		XElement.fn.extend({
+		
+			on:function(type, fn){
+				this.forEach(function(elem){
+					DOMEvent.on(elem, type, fn);
+				});
+			},
+			
+			off:function(type,fn){
+				this.forEach(function(elem){
+					DOMEvent.off(elem, type, fn);
+				});
+			},
+			
+			trigger:function(type){		
+				this.forEach(function(elem){
+					DOMEvent.trigger(elem, type);
+				});
+			}
+		});
+		
+	}(XElement));
+	</script>
+	</head>
+	<body>
+	
+	<div>
+		
+		<button id="test_event_on"> on </button> &nbsp; <button id="test_event_off"> off </button> 
+		
+	</div>
+	<div id="test_event_static_on">
+		DOMEvent.on(elem, type, fn) 
+	</div>
+	<div id="test_event_static_off">
+		DOMEvent.off(elem, type, fn)<br>
+		移除元素test_event_static_on的click事件
+	</div>
+	
+	<script>
+	
+		var test_event_on = new DOMEvent(document.getElementById("test_event_on"));
+		var test_event_off = new DOMEvent(document.getElementById("test_event_off"));
+		
+		test_event_on.on("click", function(event){
+			alert(this.id);
+		});
+		
+		test_event_on.on("click", function(){
+			alert(this.id);
+		});
+		
+		test_event_off.on("click", function(){
+			test_event_on.off("click");
+		});
+		
+		var test_event_static_on = document.getElementById("test_event_static_on")
+		
+		DOMEvent.on(test_event_static_on, "click", function(){
+			alert("test_event_static_on");
+		});
+		
+		var test_event_static_off = document.getElementById("test_event_static_off")
+		
+		DOMEvent.on(test_event_static_off, "click", function(){
+		
+			DOMEvent.off(test_event_static_on, "click");
+		});
+	</script>
+
+	</body>
+</html>
+
+
+

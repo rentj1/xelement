@@ -1,0 +1,1 @@
+!function(a){a.fn.extend({attribute:{override:!1},forEach:function(a,b){var c,d;for(c=0,d=this.length;d>c;++c)c in this&&a.call(b,this[c],c,this)},indexOf:function(a,b){var c,d,e=b?b:0;if(!this)throw new TypeError;if(d=this.length,0===d||e>=d)return-1;for(0>e&&(e=d-Math.abs(e)),c=e;d>c;c++)if(this[c]===a)return c;return-1}})}(XElement);
